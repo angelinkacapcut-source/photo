@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Запись видео 3:4</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        /* Контейнер для видео с четким форматом 3:4 */
+        .video-container {
+            width: 90%;
+            max-width: 400px; /* Ограничиваем ширину для десктопа */
+            aspect-ratio: 3 / 4; 
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Заполняет контейнер, обрезая лишнее */
+        }
+
+        button { 
+            margin-top: 20px; 
+            padding: 12px 24px; 
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer; 
+            background-color: #007bff;
+            color: white;
+            transition: background 0.3s;
+        }
+
+        button:active { transform: scale(0.98); }
+        .recording { background-color: #dc3545 !important; }
+    </style>
+</head>
+<body>
+
+    <div class="video-container">
+        <video id="videoPreview" autoplay muted playsinline></video>
+    </div>
+    
+    <button id="btnRecord">Начать запись</button>
+
+    <script>
+        const preview = document.getElementById('videoPreview');
+        const btnRecord = document.getElementById('btnRecord');
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        async function initCamera() {
+            try {
+                // Указываем пропорции 3:4 (0.75)
+                const constraints = {
+                    video: {
+                        width: { ideal: 480 },
+                        height: { ideal: 640 },
+                        aspectRatio: 0.75 
+                    },
+                    audio: true
+                };
+                
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                preview.srcObject = stream;
+            } catch (err) {
+                console.error("Ошибка:", err);
+                alert("Ошибка доступа к камере. Убедитесь, что используете HTTPS или localhost.");
+            }
+        }
+
+        btnRecord.addEventListener('click', () => {
+            if (btnRecord.innerText === 'Начать запись') {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            recordedChunks = [];
+            const stream = preview.srcObject;
+            
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = saveVideo;
+            mediaRecorder.start();
+            
+            btnRecord.innerText = 'Остановить';
+            btnRecord.classList.add('recording');
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            btnRecord.innerText = 'Начать запись';
+            btnRecord.classList.remove('recording');
+        }
+
+        function saveVideo() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `video_3_4_${Date.now()}.webm`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        initCamera();
+    </script>
+</body>
+</html>
