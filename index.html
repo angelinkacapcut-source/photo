@@ -2,87 +2,154 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Запись видео 3:4</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Запись 3:4 Mobile</title>
     <style>
+        :root {
+            --primary: #007bff;
+            --danger: #ff4757;
+        }
+        
         body { 
-            font-family: sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex; 
             flex-direction: column; 
             align-items: center; 
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
+            background-color: #1a1a1a; /* Темный фон лучше для камеры */
+            color: white;
+            overflow: hidden;
         }
 
-        /* Контейнер для видео с четким форматом 3:4 */
-        .video-container {
-            width: 90%;
-            max-width: 400px; /* Ограничиваем ширину для десктопа */
+        /* Контейнер 3:4 */
+        .video-wrapper {
+            width: 90vw;
+            max-width: 400px;
             aspect-ratio: 3 / 4; 
             background: #000;
-            border-radius: 12px;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 2px solid #333;
         }
 
         video {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Заполняет контейнер, обрезая лишнее */
+            object-fit: cover;
+            /* Зеркалим только фронтальную камеру (логика в JS) */
+        }
+
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
         }
 
         button { 
-            margin-top: 20px; 
-            padding: 12px 24px; 
+            padding: 15px 25px; 
             font-size: 16px;
-            font-weight: bold;
+            font-weight: 600;
             border: none;
-            border-radius: 50px;
+            border-radius: 30px;
             cursor: pointer; 
-            background-color: #007bff;
-            color: white;
-            transition: background 0.3s;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        button:active { transform: scale(0.98); }
-        .recording { background-color: #dc3545 !important; }
+        #btnRecord {
+            background-color: var(--primary);
+            color: white;
+            min-width: 160px;
+        }
+
+        #btnFlip {
+            background-color: #444;
+            color: white;
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            border-radius: 50%;
+        }
+
+        .recording { 
+            background-color: var(--danger) !important; 
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Иконка поворота (SVG) */
+        #btnFlip svg { width: 24px; height: 24px; fill: currentColor; }
     </style>
 </head>
 <body>
 
-    <div class="video-container">
+    <div class="video-wrapper">
         <video id="videoPreview" autoplay muted playsinline></video>
     </div>
     
-    <button id="btnRecord">Начать запись</button>
+    <div class="controls">
+        <button id="btnFlip" title="Сменить камеру">
+            <svg viewBox="0 0 24 24"><path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zM7 7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7z"/></svg>
+        </button>
+        <button id="btnRecord">Начать запись</button>
+    </div>
 
     <script>
         const preview = document.getElementById('videoPreview');
         const btnRecord = document.getElementById('btnRecord');
+        const btnFlip = document.getElementById('btnFlip');
+        
         let mediaRecorder;
         let recordedChunks = [];
+        let currentStream;
+        let useFrontCamera = true; // По умолчанию фронтальная
 
-        async function initCamera() {
+        async function startCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    // facingMode: 'user' (фронтальная) или 'environment' (задняя)
+                    facingMode: useFrontCamera ? "user" : "environment",
+                    width: { ideal: 720 },
+                    height: { ideal: 960 },
+                    aspectRatio: 0.75
+                },
+                audio: true
+            };
+
             try {
-                // Указываем пропорции 3:4 (0.75)
-                const constraints = {
-                    video: {
-                        width: { ideal: 480 },
-                        height: { ideal: 640 },
-                        aspectRatio: 0.75 
-                    },
-                    audio: true
-                };
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                preview.srcObject = currentStream;
                 
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                preview.srcObject = stream;
+                // Зеркалим изображение только для фронтальной камеры, чтобы было привычно
+                preview.style.transform = useFrontCamera ? "scaleX(-1)" : "scaleX(1)";
+                
             } catch (err) {
-                console.error("Ошибка:", err);
-                alert("Ошибка доступа к камере. Убедитесь, что используете HTTPS или localhost.");
+                console.error("Ошибка камеры:", err);
+                alert("Не удалось переключить камеру");
             }
         }
+
+        // Переключение камеры
+        btnFlip.addEventListener('click', () => {
+            useFrontCamera = !useFrontCamera;
+            startCamera();
+        });
 
         btnRecord.addEventListener('click', () => {
             if (btnRecord.innerText === 'Начать запись') {
@@ -94,9 +161,8 @@
 
         function startRecording() {
             recordedChunks = [];
-            const stream = preview.srcObject;
-            
-            mediaRecorder = new MediaRecorder(stream);
+            // Важно: берем поток прямо из превью
+            mediaRecorder = new MediaRecorder(currentStream);
             
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) recordedChunks.push(e.data);
@@ -107,12 +173,14 @@
             
             btnRecord.innerText = 'Остановить';
             btnRecord.classList.add('recording');
+            btnFlip.style.display = 'none'; // Скрываем смену камеры во время записи
         }
 
         function stopRecording() {
             mediaRecorder.stop();
             btnRecord.innerText = 'Начать запись';
             btnRecord.classList.remove('recording');
+            btnFlip.style.display = 'flex';
         }
 
         function saveVideo() {
@@ -120,12 +188,13 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `video_3_4_${Date.now()}.webm`;
+            a.download = `rec_3_4_${Date.now()}.webm`;
             a.click();
             URL.revokeObjectURL(url);
         }
 
-        initCamera();
+        // Инициализация
+        startCamera();
     </script>
 </body>
 </html>
